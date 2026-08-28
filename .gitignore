@@ -1,0 +1,10 @@
+# Pruebas y Cache
+__pycache__/
+.pytest_cache/
+.vscode/
+venv/
+env/
+.env
+.coverage
+*.db
+*.log
