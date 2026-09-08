@@ -1,22 +1,40 @@
-from fastapi import APIRouter, Path, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from typing import List
 from database import get_db
+from enums import EstadoSuscripcion
 import schemas, crud.crud_suscripciones as crud_suscripciones, crud.crud_clientes as crud_clientes, crud.crud_planes as crud_planes
 
 suscripcion_router = APIRouter(prefix="/suscripciones", tags=["Gestión de suscripciones"])
 
 @suscripcion_router.post("/", response_model=schemas.SuscripcionResponse, status_code=status.HTTP_201_CREATED)
-async def crear_suscripcion(suscripcion: schemas.SuscripcionCreate, db: AsyncSession = Depends(get_db)):
-    # 1. Validar que el cliente exista
-    cliente = await crud_clientes.obtener_cliente_por_id(db=db, cliente_id=suscripcion.cliente_id)
-    if not cliente:
-        raise HTTPException(status_code=404, detail="El cliente especificado no existe")
-    # 2. Validar que el plan de membresía exista
-    plan = await crud_planes.obtener_plan_por_id(db=db, plan_id=suscripcion.plan_membresia_id)
-    if not plan:
-        raise HTTPException(status_code=404, detail="El plan de membresía especificado no existe")
-    # 3. Crear suscripción calculando vigencia
-    return await crud_suscripciones.crear_suscripcion(db=db, suscripcion=suscripcion, duracion_dias=plan.duracion_dias)
+async def crear_suscripcion(datos: schemas.SuscripcionCreate, db: AsyncSession = Depends(get_db)):
+    """
+    Registra/Renueva la suscripción de un cliente, calculando la fecha límite
+    según la duración del plan contratado.
+    """
+    return await crud_suscripciones.crear_suscripcion(db, datos)
+
+@suscripcion_router.put("/{suscripcion_id}/cambiar_estado", response_model=schemas.SuscripcionResponse)
+async def cambiar_estado_suscripcion(suscripcion_id: int, nuevo_estado: EstadoSuscripcion, db: AsyncSession = Depends(get_db)):
+    """
+    Cambia directamente el estado de una suscripción usando el Enum de estados.
+    """
+    return await crud_suscripciones.cambiar_estado_suscripcion(db, suscripcion_id, nuevo_estado)
+
+@suscripcion_router.put("/{suscripcion_id}/congelar", response_model=schemas.SuscripcionResponse)
+async def congelar_membresia(suscripcion_id: int, db: AsyncSession = Depends(get_db)):
+    """
+    Pausa temporalmente una suscripción activa.
+    """
+    return await crud_suscripciones.congelar_suscripcion(db, suscripcion_id)
+
+@suscripcion_router.put("/{suscripcion_id}/reactivar", response_model=schemas.SuscripcionResponse)
+async def reactivar_membresia(suscripcion_id: int, db: AsyncSession = Depends(get_db)):
+    """
+    Reanuda una suscripción previamente congelada y recalcula la fecha de vencimiento.
+    """
+    return await crud_suscripciones.reactivar_suscripcion(db, suscripcion_id)
 
 @suscripcion_router.get("/cliente/{cliente_id}", response_model=list[schemas.SuscripcionResponse])
 async def obtener_suscripciones_cliente(cliente_id: int, db: AsyncSession = Depends(get_db)):

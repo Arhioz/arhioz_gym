@@ -2,7 +2,6 @@ from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 
-from models import TipoTurno, TipoMembresia, EstadoSuscripcion, TipoUsuario, TipoEvento
 from enums import TipoTurno, NombreRolEnum, TipoMembresia, TipoEvento, TipoUsuario, EstadoSuscripcion
 
 # Configuracion base para lectura ORM desde SQLAlchemy

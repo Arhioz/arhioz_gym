@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 from fastapi import FastAPI
-from routers import clientes, personal, planes, roles, suscripciones
+from routers import asistencias, clientes, personal, planes, roles, suscripciones
 
 load_dotenv()
 
@@ -17,6 +17,7 @@ app.include_router(roles.rol_router)
 app.include_router(personal.personal_router)
 app.include_router(planes.plan_router)
 app.include_router(suscripciones.suscripcion_router)
+app.include_router(asistencias.asistencia_router)
 
 @app.get("/")
 def read_root():
