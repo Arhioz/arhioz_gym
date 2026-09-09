@@ -2,7 +2,7 @@ from sqlalchemy import CheckConstraint, Column, Enum, Integer, Float, String, Bo
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
-from enums import TipoTurno, TipoMembresia, TipoEvento, TipoUsuario, EstadoSuscripcion
+from enums import TipoTurno, TipoMembresia, TipoEvento, TipoUsuario, EstadoSuscripcion, MetodoPago
 
 # 1. Tabla de roles: Define los puestos permitidos para el personal del gimnasio
 class Rol(Base):
@@ -32,6 +32,7 @@ class Personal(Base):
 
     rol = relationship("Rol", back_populates="rol_de_personal")
     asistencias = relationship("Asistencia", back_populates="personal", cascade="all, delete-orphan") # cascade="all, delete-orphan" se usa en relacion "Padre" hacie el "Hijo", ej. si eliminas a un personal se eliminaran sus asistencias.
+    pagos = relationship("Pago", back_populates="personal")
 
 # 3. Tabla de clientes: Almacena la información de los clientes
 class Cliente(Base):
@@ -52,6 +53,7 @@ class Cliente(Base):
 
     suscripciones = relationship("Suscripcion", back_populates="cliente", cascade="all, delete-orphan") # cascade="all, delete-orphan", si eliminas un cliente, tambien se eliminan sus suscripciones y asistencias
     asistencias = relationship("Asistencia", back_populates="cliente", cascade="all, delete-orphan")
+    pagos = relationship("Pago", back_populates="cliente")
 
 # 4. Tabla de las diferentes membresias: Define los tipos de planes que el gimnasio ofrece (ej. Mensual, Trimestral, Anual)
 class PlanMembresia(Base):
@@ -78,6 +80,7 @@ class Suscripcion(Base):
 
     cliente = relationship("Cliente", back_populates="suscripciones")
     plan_membresia = relationship("PlanMembresia", back_populates="suscripciones")
+    pagos = relationship("Pago", back_populates="suscripcion")
 
 # 6. Tabla de asistencias del personal: Registro unificado tanto para el checador del personal como para los accesos de los clientes mediante la huella simulada
 class Asistencia(Base):
@@ -100,3 +103,22 @@ class Asistencia(Base):
             name="check_asistencia_usuario_exclusivo"
         ),
     )
+
+# 7. Tabla de pagos: Registro de ingresos, metodos de pago, folios, etc.
+class Pago(Base):
+    __tablename__ = "pagos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    folio = Column(String, unique=True, index=True, nullable=False)
+    monto = Column(Float, nullable=False)
+    metodo_pago = Column(Enum(MetodoPago), nullable=False, default=MetodoPago.EFECTIVO)
+    concepto = Column(String, nullable=True) # Ej: "Renovación Membresía Mensual"
+    fecha_pago = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    
+    cliente_id = Column(Integer, ForeignKey("clientes.id"), nullable=False)
+    suscripcion_id = Column(Integer, ForeignKey("suscripciones.id"), nullable=True)
+    personal_id = Column(Integer, ForeignKey("personal.id"), nullable=True)
+
+    cliente = relationship("Cliente", back_populates="pagos")
+    suscripcion = relationship("Suscripcion", back_populates="pagos")
+    personal = relationship("Personal", back_populates="pagos")

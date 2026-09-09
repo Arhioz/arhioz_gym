@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 
-from enums import TipoTurno, NombreRolEnum, TipoMembresia, TipoEvento, TipoUsuario, EstadoSuscripcion
+from enums import TipoTurno, NombreRolEnum, TipoMembresia, TipoEvento, TipoUsuario, EstadoSuscripcion, MetodoPago
 
 # Configuracion base para lectura ORM desde SQLAlchemy
 class BaseSchema(BaseModel): # Es lo mismo que BaseConfigModel, lee JSON, Diccionarios Y Objetos de SQLAlchemy, no solo JSON y diccionarios como BaseModel
@@ -119,6 +119,13 @@ class PersonalResponse(PersonalBase):
     is_active: bool
     rol: Optional[RolResponse] = None  # Carga la relación si se usa selectionload
 
+class PersonalSimpleResponse(PersonalBase):
+    id: int
+    rol_id: int
+    fecha_de_alta: datetime
+    is_active: bool
+    rol: Optional[RolResponse] = None
+
 # ==========================================
 # 5. SCHEMAS DE CLIENTES
 # ==========================================
@@ -169,6 +176,10 @@ class ClienteResponse(ClienteBase):
 class ClienteSimpleResponse(BaseSchema):
     id: int
     nombre: str
+    edad: int
+    telefono: str
+    email: EmailStr
+    fecha_de_alta: datetime
     is_active: bool
 
 # ==========================================
@@ -192,3 +203,62 @@ class AsistenciaResponse(AsistenciaBase):
     # Datos resumidos opcionales para la respuesta en pantalla del checador
     cliente: Optional[ClienteResponse] = None
     personal: Optional[PersonalResponse] = None
+
+# ==========================================
+# 7. PAGOS, TRANSACCIONES, FOLIOS
+# ==========================================
+
+class PagoCreate(BaseSchema):
+    cliente_id: int = Field(..., description="ID del cliente que realiza el pago")
+    suscripcion_id: Optional[int] = Field(None, description="ID de la suscripción asociada")
+    personal_id: Optional[int] = Field(None, description="ID del empleado que cobra")
+    monto: float = Field(..., gt=0, description="Monto cobrado")
+    metodo_pago: MetodoPago = Field(..., description="Método utilizado para el pago")
+    concepto: str = Field(None, description="Descripción del cobro")
+
+class PagoResponse(BaseSchema):
+    id: int
+    folio: str
+    monto: float
+    metodo_pago: MetodoPago
+    concepto: Optional[str] = None
+    fecha_pago: datetime
+    cliente_id: int
+    suscripcion_id: Optional[int] = None
+    personal_id: Optional[int] = None
+
+    cliente: Optional[ClienteSimpleResponse] = None
+    personal: Optional[PersonalSimpleResponse] = None
+
+# ==========================================
+# 8. DASHBOARD Y ANALITICAS
+# ==========================================
+
+class ResumenFinanciero(BaseSchema):
+    ingresos_totales: float
+    ingresos_mes_actual: float
+    total_transacciones: int
+
+class ResumenClientes(BaseSchema):
+    total_clientes: int
+    clientes_activos: int
+    clientes_vencidos: int
+    clientes_congelados: int
+
+class PlanPopularResponse(BaseSchema):
+    plan_id: int
+    tipo_membresia: TipoMembresia
+    precio: float
+    total_suscripciones: int
+
+class DashboardResumenResponse(BaseSchema):
+    finanzas: ResumenFinanciero
+    clientes: ResumenClientes
+    planes_populares: list[PlanPopularResponse]
+
+# ==========================================
+# 9. SCHEMAS ESPECIALES
+# ==========================================
+# Este schema se usa especialmente para el endpoint "obtener_alertas_venciminetos" en routers/dashboard
+class SuscripcionConClienteResponse(SuscripcionResponse):
+    cliente: Optional[ClienteSimpleResponse] = None

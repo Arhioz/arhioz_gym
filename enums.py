@@ -42,3 +42,11 @@ class TipoUsuario(str, enum.Enum):
 class TipoEvento(str, enum.Enum):
     ENTRADA = "entrada"
     SALIDA = "salida"
+
+# 7. Enum para metodos de pago
+class MetodoPago(str, enum.Enum):
+    EFECTIVO = "efectivo"
+    TARJETA_CREDITO = "tarjeta de credito"
+    TARJETA_DEBITO = "tarjeta de debito"
+    TRANSFERENCIA = "transferencia"
+    OTRO = "otro"
