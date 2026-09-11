@@ -6,6 +6,7 @@ from database import get_db
 from schemas import AsistenciaCreate, AsistenciaResponse
 from crud import crud_asistencias
 import auth
+from limiter import limiter
 
 asistencia_router = APIRouter(
     prefix="/asistencias",
@@ -13,6 +14,7 @@ asistencia_router = APIRouter(
 )
 
 @asistencia_router.post("/scan", status_code=status.HTTP_200_OK)
+@limiter.limit("60/minute")
 async def escanear_huella(datos: AsistenciaCreate, db: AsyncSession = Depends(get_db)):
     """
     Simula la lectura de la huella dactilar.

@@ -9,7 +9,7 @@ import auth
 
 pago_router = APIRouter(
     prefix="/pagos",
-    tags=["Manejo de Transacciones y Cobros"],
+    tags=["Manejo de Transacciones y Pagos"],
     dependencies=[Depends(auth.RequiereRol(["administrador", "recepcion"]))]
 )
 

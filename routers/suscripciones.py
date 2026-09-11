@@ -4,6 +4,7 @@ from typing import List
 from database import get_db
 from enums import EstadoSuscripcion
 import auth, schemas, crud.crud_suscripciones as crud_suscripciones
+from limiter import limiter
 
 suscripcion_router = APIRouter(prefix="/suscripciones", tags=["Gestión de suscripciones"])
 
@@ -37,6 +38,7 @@ async def reactivar_membresia(suscripcion_id: int, db: AsyncSession = Depends(ge
     return await crud_suscripciones.reactivar_suscripcion(db, suscripcion_id)
 
 @suscripcion_router.get("/cliente/{cliente_id}", response_model=list[schemas.SuscripcionResponse])
+@limiter.limit("10/minute")
 async def obtener_suscripciones_cliente(cliente_id: int, db: AsyncSession = Depends(get_db), usuario_actual = Depends(auth.obtener_usuario_actual)):
     if getattr(usuario_actual, "tipo_usuario", None) == "cliente" or not hasattr(usuario_actual, "rol_id"):
         if usuario_actual.id != cliente_id:
