@@ -13,14 +13,14 @@ class BaseSchema(BaseModel): # Es lo mismo que BaseConfigModel, lee JSON, Diccio
 # ==========================================
 
 class RolBase(BaseSchema):
-    nombre: str = Field(..., min_length=2, max_length=50, examples=["administrador", "entrenador"])
+    nombre: NombreRolEnum
     descripcion: Optional[str] = Field(None, examples=["Acceso total al sistema"])
 
 class RolCreate(RolBase):
     pass
 
 class RolUpdate(BaseSchema):
-    nombre: Optional[str] = Field(None, min_length=2, max_length=50)
+    nombre: Optional[NombreRolEnum]
     descripcion: Optional[str] = None
 
 class RolResponse(RolBase):
@@ -86,7 +86,7 @@ class PersonalBase(BaseSchema):
     horas_asignadas: int = Field(..., ge=1, le=300, description="Horas asignadas al usuario", examples=[40])
 
 class PersonalCreate(PersonalBase):
-    rol_nombre: NombreRolEnum
+    rol_id: int
     password: Optional[str] = Field(None, min_length=6, description="Opcional si no tiene acceso al sistema")
     huella_hash: str = Field(..., description="Hash único registrado por el lector biométrico")
 
@@ -96,7 +96,7 @@ class PersonalProCreate(BaseSchema):
     telefono: Optional[str]
     turno: Optional[TipoTurno]
     horas_asignadas: Optional[int]
-    rol_nombre: Optional[NombreRolEnum]
+    rol_id: Optional[int]
     password: Optional[str]
     huella_hash: Optional[str]
 
@@ -257,7 +257,28 @@ class DashboardResumenResponse(BaseSchema):
     planes_populares: list[PlanPopularResponse]
 
 # ==========================================
-# 9. SCHEMAS ESPECIALES
+# 9. SCHEMAS DE AUTENTICACIÓN
+# ==========================================
+class LoginRequest(BaseModel):
+    """
+    Datos de entrada para autenticación.
+    Permite iniciar sesión con Email o Nombre de usuario.
+    """
+    username_or_email: str
+    password: str
+
+class TokenResponse(BaseModel):
+    """
+    Estructura de respuesta entregada al autenticarse exitosamente.
+    """
+    access_token: str
+    token_type: str = "bearer"
+    tipo_usuario: str  # "personal" o "cliente"
+    nombre: str
+    rol: Optional[str] = None
+
+# ==========================================
+# 10. SCHEMAS ESPECIALES
 # ==========================================
 # Este schema se usa especialmente para el endpoint "obtener_alertas_venciminetos" en routers/dashboard
 class SuscripcionConClienteResponse(SuscripcionResponse):

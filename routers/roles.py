@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Path, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db
-import schemas, crud.crud_roles as crud_roles
+import auth, schemas, crud.crud_roles as crud_roles
 
 rol_router = APIRouter(
     prefix="/roles",
-    tags=["Catalogo de roles"]
+    tags=["Catalogo de roles"],
+    dependencies=[Depends(auth.RequiereRol(["administrador"]))]
 )
 
 # Endpoint para ver todos los roles

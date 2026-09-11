@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Path, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db
-import schemas, crud.crud_personal as crud_personal, crud.crud_roles as crud_roles
+import auth, schemas, crud.crud_personal as crud_personal
 
-personal_router = APIRouter(prefix="/personal", tags=["Catálogo de personal"])
+personal_router = APIRouter(prefix="/personal", tags=["Catálogo de personal"], dependencies=[Depends(auth.RequiereRol(["administrador"]))])
 
 # Endpoint para mostrar el listado de todo el personal
 @personal_router.get("/lista_completa", response_model=list[schemas.PersonalResponse])
@@ -29,17 +29,24 @@ async def obtener_personal_por_nombre(personal_nombre: str = Path(..., descripti
 # Endpoint para crear un nuevo personal
 @personal_router.post("/", response_model=schemas.PersonalResponse, status_code=status.HTTP_201_CREATED)
 async def crear_personal(personal: schemas.PersonalCreate, db: AsyncSession = Depends(get_db)):
-    # 1. Buscamos el rol para obtener su ID correspondiente
-    roles = await crud_roles.obtener_roles(db=db)
-    rol_encontrado = next((r for r in roles if r.nombre.lower() == personal.rol_nombre.value.lower()), None)
-    
-    if not rol_encontrado:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
-            detail=f"El rol '{personal.rol_nombre.value}' no existe en la base de datos. Por favor créalo primero en /roles."
-        )
-        
-    return await crud_personal.crear_personal(db=db, personal=personal, rol_id=rol_encontrado.id)
+    # 1. Verificamos si existe
+    db_personal = await crud_personal.obtener_personal_por_nombre(db, personal_nombre=personal.nombre)
+    if db_personal:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"El usuario {personal.nombre} ya exite")
+    # 2. Creamos el usuario en la DB
+    nuevo_personal = await crud_personal.crear_personal(db=db, personal=personal)
+    return nuevo_personal
+
+# Endpoint para crear un nuevo personal pro
+@personal_router.post("/pro", response_model=schemas.PersonalResponse, status_code=status.HTTP_201_CREATED)
+async def crear_personal_pro(personal: schemas.PersonalProCreate, db: AsyncSession = Depends(get_db)):
+    # 1. Verificamos si existe
+    db_personal = await crud_personal.obtener_personal_por_nombre(db, personal_nombre=personal.nombre)
+    if db_personal:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"El usuario {personal.nombre} ya exite")
+    # 2. Creamos el usuario en la DB
+    nuevo_personal_pro = await crud_personal.crear_personal_pro(db=db, personal=personal)
+    return nuevo_personal_pro
 
 # Endpoint para actualizar los datos de un personal
 @personal_router.put("/{personal_id}", response_model=schemas.PersonalResponse)

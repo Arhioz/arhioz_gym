@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 import models, schemas
+from auth import get_password_hash
 
 #==================================
 # --- OPERACIONES DE PERSONAL ---
@@ -26,29 +27,38 @@ async def obtener_personal(db: AsyncSession, skip: int = 0, limit: int = 10):
     return resultado.scalars().all()
 
 # 2. Registrar un nuevo personal en la base de datos
-async def crear_personal(db: AsyncSession, personal: schemas.PersonalCreate, rol_id: int):
-    # 1. Convertimos el esquema a diccionario Python
+async def crear_personal(db: AsyncSession, personal: schemas.PersonalCreate):
+    # 1. Convertimos el modelo Pydantic a diccionario
     datos_personal = personal.model_dump()
-    # 2. Eliminamos 'rol_nombre' (que no es columna de la BD) y asignamos 'rol_id'
-    datos_personal.pop("rol_nombre", None)
-    datos_personal["rol_id"] = rol_id
-    # 3. Ahora desempaquetamos un diccionario limpio que coincide exactamente con las columnas de SQLAlchemy
+    # 2. Si se proporcionó una contraseña, la hasheamos
+    if datos_personal.get("password"):
+        datos_personal["password"] = get_password_hash(datos_personal["password"])  
+    # 3. Creamos la instancia con la contraseña ya encriptada
     nuevo_personal = models.Personal(**datos_personal)
     db.add(nuevo_personal)
     await db.commit()
     await db.refresh(nuevo_personal)
-    # Cargamos explícitamente la relación 'rol' de forma asíncrona antes de retornarlo
+    # Cargamos explícitamente la relación 'rol' para la respuesta
     query = select(models.Personal).options(selectinload(models.Personal.rol)).where(models.Personal.id == nuevo_personal.id)
     resultado = await db.execute(query)
     return resultado.scalars().first()
 
 # 2.1 Registra un nuevo personal Pro sin restriccion de datos
-async def crear_personal_pro(db: AsyncSession, personal_pro: schemas.PersonalProCreate):
-    nuevo_personal_pro = models.Personal(**personal_pro.model_dump())
-    db.add(nuevo_personal_pro)
-    await db.commit()
-    await db.refresh(nuevo_personal_pro)
-    return nuevo_personal_pro
+async def crear_personal_pro(db: AsyncSession, personal: schemas.PersonalProCreate):
+    # 1. Convertimos el modelo Pydantic a diccionario
+        datos_personal = personal.model_dump()
+        # 2. Si se proporcionó una contraseña, la hasheamos
+        if datos_personal.get("password"):
+            datos_personal["password"] = get_password_hash(datos_personal["password"])  
+        # 3. Creamos la instancia con la contraseña ya encriptada
+        nuevo_personal = models.Personal(**datos_personal)
+        db.add(nuevo_personal)
+        await db.commit()
+        await db.refresh(nuevo_personal)
+        # Cargamos explícitamente la relación 'rol' para la respuesta
+        query = select(models.Personal).options(selectinload(models.Personal.rol)).where(models.Personal.id == nuevo_personal.id)
+        resultado = await db.execute(query)
+        return resultado.scalars().first()
 
 # 3. Actualizar los datos de un personal
 async def actualizar_datos_personal(db: AsyncSession, personal_db: models.Personal, datos_nuevos: schemas.PersonalUpdate):

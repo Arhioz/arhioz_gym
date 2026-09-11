@@ -5,10 +5,12 @@ from typing import List
 from database import get_db
 from schemas import PagoCreate, PagoResponse
 from crud import crud_pagos
+import auth
 
 pago_router = APIRouter(
     prefix="/pagos",
-    tags=["Manejo de Transacciones y Cobros"]
+    tags=["Manejo de Transacciones y Cobros"],
+    dependencies=[Depends(auth.RequiereRol(["administrador", "recepcion"]))]
 )
 
 @pago_router.post("/", response_model=PagoResponse, status_code=status.HTTP_201_CREATED)

@@ -3,6 +3,7 @@ import enum
 # 1. Enum para validar roles desde la API (Swagger UI dropdown)
 class NombreRolEnum(str, enum.Enum):
     ADMINISTRADOR = "administrador"
+    CLIENTE = "cliente"
     RECEPCION = "recepcion"
     ENTRENADOR = "entrenador"
     STAFF = "staff"

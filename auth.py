@@ -1,12 +1,16 @@
+from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 import os
-import database, models, crud
+from typing import List, Union, Optional
+import database, models
 from datetime import datetime, timedelta, timezone
 import jwt
 import bcrypt
 from dotenv import load_dotenv
-from fastapi import HTTPException, status, Depends
+from enums import NombreRolEnum
 
 # Busca el archivo .env y carga sus valores en el sistema
 load_dotenv()
@@ -15,6 +19,9 @@ load_dotenv()
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
+
+# Esquema OAuth2 que apunta a la ruta de inicio de sesión
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 
 # --- GESTIÓN DE CONTRASEÑAS ---
 
@@ -41,7 +48,13 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 # C. Crear el Token JWT (el pasaporte digital)
 def create_access_token(data: dict) -> str:
-    """Genera un token JWT firmado."""
+    """
+    Genera un token JWT firmado.
+    Se espera que `data` incluya:
+      - 'sub': ID del usuario (str)
+      - 'tipo_usuario': 'personal' | 'cliente'
+      - 'rol': Nombre del rol
+    """
     to_encode = data.copy()
     
     # Calculamos el tiempo de expiración
@@ -56,90 +69,86 @@ def create_access_token(data: dict) -> str:
     return token_jwt
 
 # --- MIDDLEWARE DE AUTENTICACION ---
-
-# 1. Esto le dice a FastAPI de dónde sacar el token (de la ruta /login)
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-
-# 2. Función para obtener al usuario actual a partir del Token
+# Función para obtener al usuario actual a partir del Token
 async def obtener_usuario_actual(
     token: str = Depends(oauth2_scheme), 
     db: AsyncSession = Depends(database.get_db)
-):
+) -> Union[models.Personal, models.Cliente]:
+    """
+    Obtiene al usuario actual (Personal o Cliente) evaluando el token JWT.
+    """
     credenciales_invalidas_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="No se pudieron validar las credenciales",
+        detail="No se pudieron validar las credenciales o sesión expirada",
         headers={"WWW-Authenticate": "Bearer"},
     )
     
     try:
         # Intentamos decodificar el token con PyJWT
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
-        if username is None:
+        user_id: str = payload.get("sub")
+        tipo_usuario: str = payload.get("tipo_usuario")
+        if user_id is None or tipo_usuario is None:
             raise credenciales_invalidas_exception
-    except (jwt.InvalidTokenError, jwt.ExpiredSignatureError):
+        user_id_int = int(user_id)
+    except (jwt.InvalidTokenError, jwt.ExpiredSignatureError, ValueError):
         # Si el token está roto, corrupto o ya expiró
         raise credenciales_invalidas_exception
         
-    # Buscamos al usuario en la DB usando crud.py
-    usuario = await crud.obtener_usuario_por_username(db, username=username)
-    if usuario is None:
+    # Búsqueda según la entidad del usuario
+    if tipo_usuario == "personal":
+        query = (
+            select(models.Personal)
+            .options(selectinload(models.Personal.rol))
+            .where(models.Personal.id == user_id_int)
+        )
+        resultado = await db.execute(query)
+        usuario = resultado.scalars().first()
+        
+    elif tipo_usuario == "cliente":
+        query = select(models.Cliente).where(models.Cliente.id == user_id_int)
+        resultado = await db.execute(query)
+        usuario = resultado.scalars().first()
+        
+    else:
         raise credenciales_invalidas_exception
-    
+
+    if usuario is None or not usuario.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Usuario inactivo o no encontrado"
+        )
+        
     return usuario
 
-# --- VERIFICACION DE ROLES ---
+# --- CONTROL DE ACCESO BASADO EN ROLES (RBAC) ---
 
-# Verifica si el rol del usuario es admin
-def verificar_rol_admin(usuario_actual: models.User = Depends(obtener_usuario_actual)):
-    if usuario_actual.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tienes permisos de Administrador para realizar esta acción"
-        )
-    return usuario_actual
+class RequiereRol:
+    """
+    Clase inyectable para FastAPI que valida si el usuario autenticado
+    posee uno de los roles autorizados.
+    
+    Uso en endpoints:
+        @router.get("/admin-only", dependencies=[Depends(RequiereRol(["administrador"]))])
+        @router.get("/recepcion-or-admin", dependencies=[Depends(RequiereRol(["administrador", "recepcion"]))])
+    """
+    def __init__(self, roles_permitidos: List[str]):
+        self.roles_permitidos = [r.lower() for r in roles_permitidos]
 
-# Verifica si el rol es de cliente o admin
-def verificar_rol_cliente(usuario_actual: models.User = Depends(obtener_usuario_actual)):
-    if usuario_actual.role not in ["admin", "cliente"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tienes permisos para realizar esta acción"
-        )
-    return usuario_actual
+    def __call__(self, usuario_actual: Union[models.Personal, models.Cliente] = Depends(obtener_usuario_actual)):
+        # 1. Determinar el rol del usuario autenticado
+        if isinstance(usuario_actual, models.Personal):
+            rol_usuario = usuario_actual.rol.nombre.lower() if usuario_actual.rol else ""
+        elif isinstance(usuario_actual, models.Cliente):
+            rol_usuario = "cliente"
+        else:
+            rol_usuario = ""
 
-# Verifica si el rol es de recepcion o admin
-def verificar_rol_recepcion(usuario_actual: models.User = Depends(obtener_usuario_actual)):
-    if usuario_actual.role not in ["admin", "recepcion"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tienes permisos para realizar esta acción"
-        )
-    return usuario_actual
-
-# Verifica si el rol es de entrenador o admin
-def verificar_rol_entrenador(usuario_actual: models.User = Depends(obtener_usuario_actual)):
-    if usuario_actual.role not in ["admin", "entrendador"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tienes permisos para realizar esta acción"
-        )
-    return usuario_actual
-
-# Verifica si el rol es de staff o admin
-def verificar_rol_staff(usuario_actual: models.User = Depends(obtener_usuario_actual)):
-    if usuario_actual.role not in ["admin", "staff"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tienes permisos para realizar esta acción"
-        )
-    return usuario_actual
-
-# Verifica si el rol es de mantenimiento o admin
-def verificar_rol_mantenimiento(usuario_actual: models.User = Depends(obtener_usuario_actual)):
-    if usuario_actual.role not in ["admin", "mantenimiento"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tienes permisos para realizar esta acción"
-        )
-    return usuario_actual
+        # 2. Permitir el paso si el rol está autorizado o si es Administrador
+        if rol_usuario not in self.roles_permitidos and rol_usuario != "administrador":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No posees los permisos necesarios para realizar esta acción"
+            )
+            
+        return usuario_actual

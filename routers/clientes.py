@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Path, Depends, Query, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db
-import schemas, crud.crud_clientes as crud_clientes
+import schemas, crud.crud_clientes as crud_clientes, auth
 
 cliente_router = APIRouter(
     prefix="/clientes",
-    tags=["Catalogo de clientes"]
+    tags=["Catalogo de clientes"],
+    dependencies=[Depends(auth.RequiereRol(["administrador", "recepcion"]))]
 )
 
 # Endpoint para mostrar el listado de todos los clientes

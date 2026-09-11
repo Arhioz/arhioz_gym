@@ -3,12 +3,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
 from database import get_db
-import schemas
+import schemas, auth
 from crud import crud_dashboard
 
 dashboard_router = APIRouter(
     prefix="/dashboard",
-    tags=["Dashboard y Analíticas"]
+    tags=["Dashboard y Analíticas"],
+    dependencies=[Depends(auth.RequiereRol(["administrador"]))]
 )
 
 @dashboard_router.get("/resumen", response_model=schemas.DashboardResumenResponse)
