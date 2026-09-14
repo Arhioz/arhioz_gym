@@ -8,3 +8,6 @@ env/
 .coverage
 *.db
 *.log
+
+prod.txt
+seed.py

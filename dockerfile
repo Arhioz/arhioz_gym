@@ -1,21 +1,25 @@
-# 1. La base: Version minimalista de Debian (ligera y segura)
 FROM python:3.12-slim
 
-# 2. El directorio de trabajo dentro del contenedor
 WORKDIR /app
 
-# 3. Instalacion de dependencias del sistema operativo (Compiladores y drivers para Postgres), las instalamos debido a que python:3.12-slim carece de estas herraminetas y librerias.
+# Prevenir archivos .pyc y forzar salida de logs sin búfer
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Instalar dependencias del sistema necesarias
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# 4. Copiamos e instalamos el archivo de librerías para instalarlas
+# Copia e instalación de requerimientos
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 5. Copiamos todo el resto de nuestro código a la carpeta /app del contenedor
+# Copia del código fuente de la aplicación
 COPY . .
 
-# 6. El comando para arrancar la API cuando el contenedor inicie
+EXPOSE 8000
+
+# Ejecución en modo producción
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
