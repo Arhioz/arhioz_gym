@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
@@ -15,7 +15,7 @@ asistencia_router = APIRouter(
 
 @asistencia_router.post("/scan", status_code=status.HTTP_200_OK)
 @limiter.limit("60/minute")
-async def escanear_huella(datos: AsistenciaCreate, db: AsyncSession = Depends(get_db)):
+async def escanear_huella(request: Request, datos: AsistenciaCreate, db: AsyncSession = Depends(get_db)):
     """
     Simula la lectura de la huella dactilar.
     Valida internamente si corresponde a personal (Entrada/Salida) 

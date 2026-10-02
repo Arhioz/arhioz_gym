@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 from database import get_db
@@ -39,7 +39,7 @@ async def reactivar_membresia(suscripcion_id: int, db: AsyncSession = Depends(ge
 
 @suscripcion_router.get("/cliente/{cliente_id}", response_model=list[schemas.SuscripcionResponse])
 @limiter.limit("10/minute")
-async def obtener_suscripciones_cliente(cliente_id: int, db: AsyncSession = Depends(get_db), usuario_actual = Depends(auth.obtener_usuario_actual)):
+async def obtener_suscripciones_cliente(request: Request, cliente_id: int, db: AsyncSession = Depends(get_db), usuario_actual = Depends(auth.obtener_usuario_actual)):
     if getattr(usuario_actual, "tipo_usuario", None) == "cliente" or not hasattr(usuario_actual, "rol_id"):
         if usuario_actual.id != cliente_id:
             raise HTTPException(

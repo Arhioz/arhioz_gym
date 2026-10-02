@@ -13,7 +13,6 @@ auth_router = APIRouter(
 )
 
 @auth_router.post("/login", response_model=schemas.TokenResponse)
-@limiter.limit("5/minute")
 async def login(
     credenciales: schemas.LoginRequest, 
     db: AsyncSession = Depends(get_db)
@@ -111,7 +110,6 @@ async def login(
 
 
 @auth_router.post("/token", include_in_schema=False)
-@limiter.limit("5/minute")
 async def login_swagger(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db)
@@ -134,6 +132,7 @@ async def login_swagger(
 @auth_router.get("/me")
 @limiter.limit("20/minute")
 async def obtener_perfil_actual(
+    request: Request,
     usuario_actual = Depends(auth.obtener_usuario_actual)
 ):
     """
